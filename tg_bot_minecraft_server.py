@@ -15,16 +15,17 @@ async def start(update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=reply_markup
     )
 
-async def settings_menu(update, context: ContextTypes.DEFAULT_TYPE):
+async def settings_menu(query, context: ContextTypes.DEFAULT_TYPE):
     """Показывает меню настроек Minecraft сервера"""
     keyboard = [
         [InlineKeyboardButton("Легкий", callback_data="level_easy")],
         [InlineKeyboardButton("Средний", callback_data="level_medium")],
         [InlineKeyboardButton("Сложный", callback_data="level_hard")],
-        [InlineKeyboardButton("Сохранить", callback_data="save_config")]
+        [InlineKeyboardButton("🔙 Назад", callback_data="back_to_start")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(
+    
+    await query.edit_message_text(
         "⚙️ Настройки Minecraft сервера:\nВыберите сложность:",
         reply_markup=reply_markup
     )
@@ -35,26 +36,34 @@ async def handle_settings(update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     
     if query.data == "show_settings":
-        await settings_menu(update, context)
+        await settings_menu(query, context)
     elif query.data.startswith("level_"):
         level = query.data.split("_")[1]
         context.user_data["server_level"] = level
         await query.edit_message_text(
-            f"✅ Установлена сложность: {level.title()}\n"
-            f"Дальше можно добавить другие настройки..."
+            f"✅ Установлена сложность: {level.title()}\n\n"
+            f"🎮 Настройки сохранены!\n"
+            f"Дальше можно добавить другие параметры..."
         )
     elif query.data == "save_config":
         config = context.user_data.get("server_level", "не выбрана")
         await query.edit_message_text(
             f"💾 Конфигурация сохранена!\n"
             f"Сложность: {config}\n"
-            f"В будущем бот сгенерирует сервер по этим настройкам."
+            f"✅ В будущем бот сгенерирует сервер по этим настройкам."
+        )
+    elif query.data == "back_to_start":
+        keyboard = [[InlineKeyboardButton("⚙️ Настройки сервера", callback_data="show_settings")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(
+            "🎮 Главное меню\n\nВыберите действие:",
+            reply_markup=reply_markup
         )
 
 def main():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("settings", settings_menu))
+    app.add_handler(CommandHandler("settings", start))  # Перенаправляет на главное меню
     app.add_handler(CallbackQueryHandler(handle_settings))
     app.run_polling()
 
