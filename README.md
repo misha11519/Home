@@ -25,12 +25,15 @@ npm run start
 - **Инструменты:** Gradle, GitHub Actions, Docker
 - **Принципы:** модульность, структурность и читаемость кода
 ---
-## 🛡️Лицензия
+## 🛡️ Лицензия
+
 Этот проект распространяется под открытыми лицензиями:
-[![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicen
-[![GPLv3 License](https://img.shields.io/badge/License-GPL%20v3-yellow.svg)](https://open
-[![AGPL License](https://img.shields.io/badge/license-AGPL-blue.svg)](http://www.gnu.org/
+
+[![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicense.com/licenses/mit/)
+[![GPLv3 License](https://img.shields.io/badge/License-GPL%20v3-yellow.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
+[![AGPL License](https://img.shields.io/badge/license-AGPL-blue.svg)](https://www.gnu.org/licenses/agpl-3.0.html)
 ---
+
 ## 👤 Автор
 - [@misha11519](https://github.com/misha11519)
 ---
