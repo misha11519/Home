@@ -63,7 +63,7 @@ async def handle_settings(update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("settings", start))  # Перенаправляет на главное меню
+    app.add_handler(CommandHandler("settings", start))
     app.add_handler(CallbackQueryHandler(handle_settings))
     app.run_polling()
 
