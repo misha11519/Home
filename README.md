@@ -9,7 +9,7 @@
 
 ![Project Progress](https://img.shields.io/badge/Progress-10%25-blue?style=for-the-badge)
 
-<img width="470" height="465" alt="diagram" src="https://github.com/user-attachments/assets/c9964d09-b6e3-43b9-aba5-6c69c08b832c" />
+<img width="740" height="695" alt="diagram (2)" src="https://github.com/user-attachments/assets/93d7d287-7e1f-42ed-9a71-dc19c99a3ad6" />
 
 ### ✨ Функции
 - ⚙️ Интерактивное меню настроек
