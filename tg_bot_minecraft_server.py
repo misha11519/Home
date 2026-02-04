@@ -3,14 +3,17 @@ import zipfile
 import logging
 import aiohttp
 import asyncio
+import tempfile
+import traceback
 from io import BytesIO
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 from telegram.request import HTTPXRequest
+from telegram.error import TimedOut, NetworkError
 
 logging.disable(logging.CRITICAL)
 
-TOKEN = "BOT_TOKEN"
+TOKEN = "8476569248:AAGmi_ABmudAdl6KaTjig58MMI_xxKg1KZQ"
 
 user_settings = {}
 user_states = {}
@@ -30,7 +33,7 @@ async def download_with_retry(session, url, progress_callback=None, max_retries=
                 
                 downloaded = 0
                 chunks = []
-                chunk_size = 1024 * 1024  # 1MB chunks
+                chunk_size = 1024 * 1024
                 last_progress = 0
                 
                 async for chunk in response.content.iter_chunked(chunk_size):
@@ -137,7 +140,6 @@ async def get_server_jar(loader, version, progress_callback=None):
                             version_parts = version.split('.')
                             major = int(version_parts[1]) if len(version_parts) > 1 else 0
                             
-                            # Версии 1.7-1.12 используют universal.jar
                             if major >= 7 and major <= 12:
                                 full_version = f"{version}-{forge_version}"
                                 download_url = f"https://maven.minecraftforge.net/net/minecraftforge/forge/{full_version}/forge-{full_version}-universal.jar"
@@ -153,8 +155,6 @@ async def get_server_jar(loader, version, progress_callback=None):
                                         jar_name = f"forge-{version}-universal.jar"
                                         jar_data = await download_with_retry(session, download_url, progress_callback)
                                         return jar_data, jar_name
-                            
-                            # Для новых версий (1.13+)
                             else:
                                 full_version = f"{version}-{forge_version}"
                                 download_url = f"https://maven.minecraftforge.net/net/minecraftforge/forge/{full_version}/forge-{full_version}-installer.jar"
@@ -261,7 +261,7 @@ async def create_server_package(user_id, progress_message):
             except:
                 pass
         
-        # Скачиваем jar
+        print(f"[DEBUG] Загрузка jar для {settings.get('loader')} {settings.get('version')}")
         jar_data, jar_name = await get_server_jar(
             settings.get('loader', 'vanilla'),
             settings.get('version', '1.20.1'),
@@ -272,16 +272,19 @@ async def create_server_package(user_id, progress_message):
             raise Exception("Не удалось загрузить серверное ядро")
         
         original_size = len(jar_data)
+        print(f"[DEBUG] Jar загружен: {original_size / (1024*1024):.1f}MB")
         await update_progress(f"🗜️ Сжатие {original_size // (1024*1024)}MB...")
         
-        # Создаем архив
-        memory = BytesIO()
+        # Создаем временный файл
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+        temp_path = temp_file.name
+        temp_file.close()
+        print(f"[DEBUG] Временный файл: {temp_path}")
         
-        with zipfile.ZipFile(memory, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
-            # Jar с максимальным сжатием
-            zf.writestr(jar_name, jar_data, compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
-            
-            # Конфиги
+        # Создаем архив
+        print(f"[DEBUG] Создание архива...")
+        with zipfile.ZipFile(temp_path, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
+            zf.writestr(jar_name, jar_data, compress_type=zipfile.ZIP_DEFLATED, compresslevel=6)
             zf.writestr('server.properties', generate_server_properties(settings))
             zf.writestr('eula.txt', 'eula=true')
             
@@ -292,26 +295,28 @@ async def create_server_package(user_id, progress_message):
             zf.writestr('ops.json', '[]')
             zf.writestr('whitelist.json', '[]')
         
-        memory.seek(0)
-        archive_size = len(memory.getvalue())
+        archive_size = os.path.getsize(temp_path)
         compression_ratio = 100 - (archive_size / original_size * 100)
+        print(f"[DEBUG] Архив создан: {archive_size / (1024*1024):.1f}MB")
         
-        # Проверка лимита
         max_size = 49.5 * 1024 * 1024
         
         if archive_size > max_size:
+            os.unlink(temp_path)
             raise Exception(
                 f"Архив {archive_size / (1024*1024):.1f}MB превышает лимит 50MB\n\n"
                 f"💡 Попробуйте:\n"
                 f"• Более старую версию (1.12.2, 1.8.8, 1.7.10)\n"
-                f"• Fabric вместо Forge (легче)"
+                f"• Fabric вместо Forge"
             )
         
         await update_progress(f"✅ Архив готов: {archive_size / (1024*1024):.1f}MB")
         
-        return memory, archive_size, original_size, compression_ratio
+        return temp_path, archive_size, original_size, compression_ratio
         
     except Exception as e:
+        print(f"[ERROR] create_server_package: {e}")
+        traceback.print_exc()
         raise Exception(str(e))
 
 async def start(update, context: ContextTypes.DEFAULT_TYPE):
@@ -353,7 +358,7 @@ async def start(update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton("📋 Меню", callback_data="action_menu")]]
     await update.message.reply_text(
         "🎮 Minecraft Server Builder\n\n"
-        "✨ Vanilla, Fabric, Forge\n",
+        "✨ Vanilla, Fabric, Forge",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -581,9 +586,7 @@ async def button_handler(update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [[InlineKeyboardButton("📋 Меню", callback_data="action_menu")]]
         await query.edit_message_text(
             "🎮 Minecraft Server Builder\n\n"
-            "✨ Vanilla, Fabric, Forge\n"
-            "🗜️ Сжатие DEFLATE\n"
-            "📦 Всё в одном архиве",
+            "✨ Vanilla, Fabric, Forge",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
     
@@ -593,8 +596,11 @@ async def button_handler(update, context: ContextTypes.DEFAULT_TYPE):
     
     elif data == "create_server":
         msg = await query.edit_message_text("⏳ Запуск...")
+        temp_path = None
         try:
-            pkg, archive_size, original_size, compression = await create_server_package(user_id, msg)
+            print(f"[DEBUG] Начало создания для user {user_id}")
+            temp_path, archive_size, original_size, compression = await create_server_package(user_id, msg)
+            print(f"[DEBUG] Пакет создан: {temp_path}")
             
             s = user_settings.get(user_id, {})
             fname = f"minecraft-server-{s.get('version')}-{s.get('loader').lower()}.zip"
@@ -607,17 +613,46 @@ async def button_handler(update, context: ContextTypes.DEFAULT_TYPE):
                 f"🚀 Распакуйте и запустите start.bat/start.sh"
             )
             
-            # Отправляем напрямую без дополнительного обновления сообщения
-            await query.message.reply_document(
-                document=pkg,
-                filename=fname,
-                caption=caption
-            )
+            # Проверка
+            if not os.path.exists(temp_path):
+                raise Exception("Файл не создан")
             
+            print(f"[DEBUG] Обновление статуса отправки...")
+            await msg.edit_text(f"📤 Отправка {archive_size / (1024*1024):.1f}MB...")
+            
+            # Отправка
+            print(f"[DEBUG] Открытие файла для отправки...")
+            with open(temp_path, 'rb') as file:
+                print(f"[DEBUG] Вызов send_document...")
+                await context.bot.send_document(
+                    chat_id=query.message.chat_id,
+                    document=file,
+                    filename=fname,
+                    caption=caption,
+                    read_timeout=600,
+                    write_timeout=600,
+                    connect_timeout=120,
+                    pool_timeout=120
+                )
+                print(f"[DEBUG] Документ отправлен!")
+            
+            print(f"[DEBUG] Удаление статусного сообщения...")
             await msg.delete()
+            print(f"[DEBUG] Успех!")
                 
         except Exception as e:
+            print(f"[ERROR] {type(e).__name__}: {str(e)}")
+            traceback.print_exc()
             await msg.edit_text(f"❌ Ошибка: {str(e)}")
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    print(f"[DEBUG] Удаление временного файла...")
+                    await asyncio.sleep(1)
+                    os.unlink(temp_path)
+                    print(f"[DEBUG] Временный файл удален")
+                except Exception as cleanup_error:
+                    print(f"[ERROR] Удаление файла: {cleanup_error}")
             
     elif data == "settings":
         user_states[user_id] = None
@@ -744,18 +779,22 @@ async def button_handler(update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text("✏️ Введите seed:")
 
 def main():
+    print("[INFO] Запуск бота...")
+    
     request = HTTPXRequest(
-        connection_pool_size=8,
-        read_timeout=900,
-        write_timeout=900,
-        connect_timeout=90,
-        pool_timeout=90
+        connection_pool_size=16,
+        read_timeout=600,
+        write_timeout=600,
+        connect_timeout=120,
+        pool_timeout=120
     )
     
     app = Application.builder().token(TOKEN).request(request).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_input))
+    
+    print("[INFO] Бот запущен! Ожидание команд...")
     app.run_polling()
 
 if __name__ == "__main__":
