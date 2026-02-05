@@ -13,7 +13,7 @@ from telegram.error import TimedOut, NetworkError
 
 logging.disable(logging.CRITICAL)
 
-TOKEN = "8476569248:AAGmi_ABmudAdl6KaTjig58MMI_xxKg1KZQ"
+TOKEN = "BOT_TOKEN"
 
 user_settings = {}
 user_states = {}
